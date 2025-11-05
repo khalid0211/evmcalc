@@ -127,6 +127,8 @@ def calculate_evm(data, global_values):
         'Data Date': 'data_date',
         'Earned Value (EV)': 'ev',
         'Planned Value (PV)': 'pv',
+        'Manual EV': 'manual_ev',
+        'Manual PV': 'manual_pv',
         'Curve': 'curve',
         'Beta': 'beta',
         'Alpha': 'alpha',
