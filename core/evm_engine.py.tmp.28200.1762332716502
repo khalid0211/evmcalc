@@ -185,33 +185,29 @@ def calculate_evm(data, global_values):
             data[col] = pd.to_numeric(data[col], errors='coerce')
 
     # Present Value Calculation
-    # Convert AC to constant dollars by adjusting for inflation over the actual duration
-    # This represents the "real" value of money spent, accounting for inflation
     annual_inflation_rate = data['inflation_rate'] / 100
+    monthly_rate = (1 + annual_inflation_rate)**(1/12) - 1
 
-    # Calculate the total inflation factor over the actual duration
-    # If actual_duration is in months, convert to years for annual inflation
-    duration_years = data['actual_duration_months'] / 12
+    # Avoid division by zero for actual_duration_months
+    safe_duration = data['actual_duration_months'].replace(0, np.nan)
+    pmt = data['ac'] / safe_duration
 
-    # Inflation factor: (1 + r)^t
-    # Present Value = AC / inflation_factor
-    # This gives us the value in "baseline" or "constant" dollars
-    inflation_factor = (1 + annual_inflation_rate) ** duration_years
+    # Avoid division by zero for monthly_rate
+    safe_monthly_rate = monthly_rate.replace(0, 0.0001)
 
-    # When inflation = 0: inflation_factor = 1, so PV = AC
-    # When inflation > 0: inflation_factor > 1, so PV < AC
-    data['present_value'] = data['ac'] / inflation_factor
+    # Calculate present value factor
+    with np.errstate(invalid='ignore', divide='ignore'):
+        factor = (1 - (1 + safe_monthly_rate)**(-safe_duration)) / safe_monthly_rate
 
-    # Handle edge cases
+    data['present_value'] = pmt * factor
+
+    # Fill NaN values with AC where duration is 0
     data['present_value'] = data['present_value'].fillna(data['ac'])
 
     # Planned Value (PV)
-    # ALWAYS calculate PV from BAC and time unless use_manual_pv is explicitly enabled
     if global_values.get('use_manual_pv') and 'manual_pv' in data.columns:
         data['pv'] = pd.to_numeric(data['manual_pv'], errors='coerce')
-        import warnings
-        warnings.warn("Using manual PV from 'manual_pv' column as per global settings")
-    else:
+    elif 'pv' not in data.columns or data['pv'].isnull().all():
         t = data['actual_duration_months'] / data['original_duration_months']
         t = t.fillna(0).clip(0, 1)  # Ensure t is between 0 and 1
 
@@ -241,28 +237,33 @@ def calculate_evm(data, global_values):
     data['pv'] = pd.to_numeric(data['pv'], errors='coerce')
 
     # Earned Value (EV)
-    # ALWAYS calculate EV from AC unless use_manual_ev is explicitly enabled
     if global_values.get('use_manual_ev') and 'manual_ev' in data.columns:
         data['ev'] = pd.to_numeric(data['manual_ev'], errors='coerce')
-        import warnings
-        warnings.warn("Using manual EV from 'manual_ev' column as per global settings")
-    else:
-        # EV is the present value of AC, discounted by inflation
-        # When inflation = 0, EV = AC
-        # When inflation > 0, EV < AC (discounted)
-        data['ev'] = data['present_value'].copy()
+    elif 'ev' not in data.columns or data['ev'].isnull().all():
+        # Use the same percentage completion as time elapsed
+        t = data['actual_duration_months'] / data['original_duration_months']
+        t = t.fillna(0).clip(0, 1)
 
-        import warnings
-        warnings.warn(f"Calculating EV from AC. Sample: AC={data['ac'].iloc[0]:.2f}, inflation={data['inflation_rate'].iloc[0]:.2f}%, duration={data['actual_duration_months'].iloc[0]:.2f} months, EV={data['ev'].iloc[0]:.2f}")
+        if global_values.get('curve') == 'linear':
+            data['ev'] = data['bac'] * t
+        else:  # s-curve
+            ev_values = []
+            for idx in data.index:
+                try:
+                    alpha = data.loc[idx, 'alpha']
+                    beta = data.loc[idx, 'beta']
+                    bac = data.loc[idx, 'bac']
+                    t_val = t.loc[idx]
 
-        # Debug: Check that EV <= AC when inflation >= 0
-        problematic_rows = data[(data['ev'] > data['ac']) & (data['inflation_rate'] >= 0)]
-        if len(problematic_rows) > 0:
-            max_diff = (problematic_rows['ev'] - problematic_rows['ac']).max()
-            warnings.warn(f"WARNING: Found {len(problematic_rows)} rows where EV > AC with non-negative inflation! Max difference: {max_diff:.2f}")
-            # Show sample for debugging
-            sample = problematic_rows[['ac', 'present_value', 'ev', 'inflation_rate', 'actual_duration_months']].head(3)
-            warnings.warn(f"Sample problematic rows:\n{sample}")
+                    if pd.notna(alpha) and pd.notna(beta) and pd.notna(bac) and pd.notna(t_val):
+                        ev_val = bac * scurve_cdf(t_val, alpha, beta)
+                        ev_values.append(ev_val)
+                    else:
+                        ev_values.append(np.nan)
+                except:
+                    ev_values.append(np.nan)
+
+            data['ev'] = ev_values
 
     # Ensure EV is numeric
     data['ev'] = pd.to_numeric(data['ev'], errors='coerce')
@@ -340,17 +341,14 @@ def calculate_evm(data, global_values):
     )
 
     # Advanced Financial Metrics
-    # Calculate present value of BAC over original and likely durations
     with np.errstate(invalid='ignore', divide='ignore'):
-        # Planned value: BAC adjusted for inflation over original duration
-        duration_years_planned = data['original_duration_months'] / 12
-        inflation_factor_planned = (1 + annual_inflation_rate) ** duration_years_planned
-        data['planned_value_project'] = data['bac'] / inflation_factor_planned
+        pmt_planned = data['bac'] / data['original_duration_months']
+        factor_planned = (1 - (1 + safe_monthly_rate)**(-data['original_duration_months'])) / safe_monthly_rate
+        data['planned_value_project'] = pmt_planned * factor_planned
 
-        # Likely value: BAC adjusted for inflation over likely duration
-        duration_years_likely = data['ld'] / 12
-        inflation_factor_likely = (1 + annual_inflation_rate) ** duration_years_likely
-        data['likely_value_project'] = data['bac'] / inflation_factor_likely
+        pmt_likely = data['bac'] / data['ld']
+        factor_likely = (1 - (1 + safe_monthly_rate)**(-data['ld'])) / safe_monthly_rate
+        data['likely_value_project'] = pmt_likely * factor_likely
 
     data['percent_present_value_project'] = np.where(
         data['bac'] > 0,

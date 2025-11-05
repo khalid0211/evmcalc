@@ -19,14 +19,14 @@ This document provides a detailed breakdown of all calculated fields in the Port
   ```
 
 ### `present_value`
-- **Description**: The present value of the actual costs incurred to date, adjusted for inflation.
-- **Calculation Method**: This is calculated using the standard present value formula for an annuity.
+- **Description**: The present value (constant dollars) of the actual costs incurred to date, adjusted for inflation over the actual duration.
+- **Calculation Method**: This converts actual costs to baseline/constant dollars by removing the effect of inflation.
   ```
-  monthly_rate = (1 + annual_inflation_rate)^(1/12) - 1
-  pmt = ac / actual_duration_months
-  factor = (1 - (1 + monthly_rate)^(-actual_duration_months)) / monthly_rate
-  present_value = pmt * factor
+  duration_years = actual_duration_months / 12
+  inflation_factor = (1 + annual_inflation_rate)^duration_years
+  present_value = ac / inflation_factor
   ```
+  When inflation = 0, present_value = AC. When inflation > 0, present_value < AC.
 
 ### `pv` (Planned Value)
 - **Description**: The budgeted cost for work scheduled to be completed by the data date.
@@ -51,11 +51,12 @@ This document provides a detailed breakdown of all calculated fields in the Port
   ```
 
 ### `ev` (Earned Value)
-- **Description**: The value of the work actually completed to date.
+- **Description**: The value of the work actually completed to date, represented as the present value of actual costs discounted by inflation.
 - **Calculation Method**:
   ```
-  bac * (present_value / bac)
+  ev = present_value
   ```
+  Where `present_value` is the AC discounted by inflation rate. When inflation = 0, EV = AC. When inflation > 0, EV < AC.
   If `use_manual_ev` is true, the manually entered `manual_ev` is used instead.
 
 ### `cv` (Cost Variance)
@@ -177,23 +178,21 @@ This document provides a detailed breakdown of all calculated fields in the Port
 ## Advanced Financial Metrics
 
 ### `planned_value_project`
-- **Description**: The present value of the entire project's budget (BAC), adjusted for inflation over the original duration.
-- **Calculation Method**: Similar to `present_value`, but using `bac` and `original_duration_months`.
+- **Description**: The present value (constant dollars) of the entire project's budget (BAC), adjusted for inflation over the original duration.
+- **Calculation Method**: Converts BAC to constant dollars over the original planned duration.
   ```
-  monthly_rate = (1 + annual_inflation_rate)^(1/12) - 1
-  pmt = bac / original_duration_months
-  factor = (1 - (1 + monthly_rate)^(-original_duration_months)) / monthly_rate
-  planned_value_project = pmt * factor
+  duration_years_planned = original_duration_months / 12
+  inflation_factor_planned = (1 + annual_inflation_rate)^duration_years_planned
+  planned_value_project = bac / inflation_factor_planned
   ```
 
 ### `likely_value_project`
-- **Description**: The present value of the entire project's budget (BAC), adjusted for inflation over the likely duration.
-- **Calculation Method**: Similar to `present_value`, but using `bac` and `ld`.
+- **Description**: The present value (constant dollars) of the entire project's budget (BAC), adjusted for inflation over the likely duration.
+- **Calculation Method**: Converts BAC to constant dollars over the forecasted likely duration.
   ```
-  monthly_rate = (1 + annual_inflation_rate)^(1/12) - 1
-  pmt = bac / ld
-  factor = (1 - (1 + monthly_rate)^(-ld)) / monthly_rate
-  likely_value_project = pmt * factor
+  duration_years_likely = ld / 12
+  inflation_factor_likely = (1 + annual_inflation_rate)^duration_years_likely
+  likely_value_project = bac / inflation_factor_likely
   ```
 
 ### `percent_present_value_project`

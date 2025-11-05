@@ -50,7 +50,7 @@ with st.expander("📊 Input Data Summary", expanded=False):
         st.json(st.session_state.global_values)
     with col2:
         st.write("**Data Preview:**")
-        st.dataframe(st.session_state.project_data.head(3), use_container_width=True)
+        st.dataframe(st.session_state.project_data.head(3), width='stretch')
 
 st.divider()
 
@@ -62,7 +62,7 @@ if calculated:
 
 col1, col2 = st.columns([3, 1])
 with col1:
-    if st.button("🔄 Calculate EVM Metrics", use_container_width=True, type="primary"):
+    if st.button("🔄 Calculate EVM Metrics", width='stretch', type="primary"):
         with st.spinner("Calculating EVM metrics..."):
             import warnings
 
@@ -129,7 +129,7 @@ with col1:
 
 with col2:
     if calculated:
-        if st.button("🗑️ Clear Results", use_container_width=True):
+        if st.button("🗑️ Clear Results", width='stretch'):
             del st.session_state.calculated_data
             st.rerun()
 
@@ -194,13 +194,13 @@ if calculated:
     )
 
     if selected_columns:
-        st.dataframe(df[selected_columns], use_container_width=True, height=400)
+        st.dataframe(df[selected_columns], width='stretch', height=400)
     else:
         st.warning("Please select at least one column to display")
 
     # Option to show all columns
     with st.expander("Show All Columns", expanded=False):
-        st.dataframe(df, use_container_width=True, height=400)
+        st.dataframe(df, width='stretch', height=400)
 
     st.divider()
 
@@ -236,7 +236,7 @@ if calculated:
             data=csv_data,
             file_name=f"{file_name}.csv",
             mime='text/csv',
-            use_container_width=True,
+            width='stretch',
             help="Download results as CSV (data only)"
         )
 
@@ -262,7 +262,7 @@ if calculated:
             data=json_data,
             file_name=f"{file_name}.json",
             mime='application/json',
-            use_container_width=True,
+            width='stretch',
             help="Download results as JSON (includes settings if selected)"
         )
 

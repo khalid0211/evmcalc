@@ -206,12 +206,9 @@ def calculate_evm(data, global_values):
     data['present_value'] = data['present_value'].fillna(data['ac'])
 
     # Planned Value (PV)
-    # ALWAYS calculate PV from BAC and time unless use_manual_pv is explicitly enabled
     if global_values.get('use_manual_pv') and 'manual_pv' in data.columns:
         data['pv'] = pd.to_numeric(data['manual_pv'], errors='coerce')
-        import warnings
-        warnings.warn("Using manual PV from 'manual_pv' column as per global settings")
-    else:
+    elif 'pv' not in data.columns or data['pv'].isnull().all():
         t = data['actual_duration_months'] / data['original_duration_months']
         t = t.fillna(0).clip(0, 1)  # Ensure t is between 0 and 1
 

@@ -174,7 +174,7 @@ if selected_project:
                 height=400
             )
 
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
 
         # Performance Indices
         if all(col in project_data.columns for col in ['cpi', 'spi']):
@@ -202,7 +202,7 @@ if selected_project:
                     yaxis_title='CPI',
                     height=300
                 )
-                st.plotly_chart(fig_cpi, use_container_width=True)
+                st.plotly_chart(fig_cpi, width='stretch')
 
             with col2:
                 fig_spi = go.Figure()
@@ -220,7 +220,7 @@ if selected_project:
                     yaxis_title='SPI',
                     height=300
                 )
-                st.plotly_chart(fig_spi, use_container_width=True)
+                st.plotly_chart(fig_spi, width='stretch')
 
         st.divider()
 
@@ -235,15 +235,15 @@ if selected_project:
         if available_columns:
             st.dataframe(
                 project_data[available_columns],
-                use_container_width=True,
+                width='stretch',
                 height=300
             )
         else:
-            st.dataframe(project_data, use_container_width=True, height=300)
+            st.dataframe(project_data, width='stretch', height=300)
 
         # Option to show all columns
         with st.expander("Show All Columns", expanded=False):
-            st.dataframe(project_data, use_container_width=True, height=400)
+            st.dataframe(project_data, width='stretch', height=400)
 
         st.divider()
 
@@ -275,6 +275,205 @@ if selected_project:
                     st.error(f"❌ Significantly Behind Schedule (SPI: {latest['spi']:.2f})")
             else:
                 st.info("No SPI data available")
+
+        st.divider()
+
+        # Time-Series Analysis Table
+        st.subheader("📊 Time-Series Analysis by Data Date")
+        st.write("View all calculated metrics over time, organized by category")
+
+        # Define variable categories (reorganized logically)
+        variable_categories = {
+            'Mandatory Inputs': {
+                'bac': {'label': 'Budget at Completion (BAC)', 'format': 'currency'},
+                'ac': {'label': 'Actual Cost (AC)', 'format': 'currency'},
+                'plan_start_date': {'label': 'Plan Start Date', 'format': 'date'},
+                'plan_finish_date': {'label': 'Plan Finish Date', 'format': 'date'},
+                'data_date': {'label': 'Data Date', 'format': 'date'},
+            },
+            'Optional Inputs': {
+                'alpha': {'label': 'Alpha', 'format': 'decimal2'},
+                'beta': {'label': 'Beta', 'format': 'decimal2'},
+                'inflation_rate': {'label': 'Inflation Rate (%)', 'format': 'decimal2'},
+            },
+            'Estimated Variables': {
+                'pv': {'label': 'Planned Value (PV)', 'format': 'currency'},
+                'ev': {'label': 'Earned Value (EV)', 'format': 'currency'},
+                'present_value': {'label': 'Present Value', 'format': 'currency'},
+            },
+            'Duration Calculations': {
+                'actual_duration_months': {'label': 'Actual Duration (months)', 'format': 'decimal2'},
+                'original_duration_months': {'label': 'Original Duration (months)', 'format': 'decimal2'},
+            },
+            'EVM Core Metrics': {
+                'percent_complete': {'label': 'Percent Complete (%)', 'format': 'decimal1'},
+                'cv': {'label': 'Cost Variance (CV)', 'format': 'currency'},
+                'sv': {'label': 'Schedule Variance (SV)', 'format': 'currency'},
+                'cpi': {'label': 'Cost Performance Index (CPI)', 'format': 'decimal2'},
+                'spi': {'label': 'Schedule Performance Index (SPI)', 'format': 'decimal2'},
+                'tcpi': {'label': 'To-Complete Performance Index (TCPI)', 'format': 'decimal2'},
+            },
+            'Forecasting Metrics': {
+                'eac': {'label': 'Estimate at Completion (EAC)', 'format': 'currency'},
+                'etc': {'label': 'Estimate to Complete (ETC)', 'format': 'currency'},
+                'vac': {'label': 'Variance at Completion (VAC)', 'format': 'currency'},
+            },
+            'Earned Schedule Metrics': {
+                'es': {'label': 'Earned Schedule (ES)', 'format': 'decimal2'},
+                'spie': {'label': 'Schedule Performance Index - ES (SPIE)', 'format': 'decimal2'},
+                'tve': {'label': 'Time Variance - ES (TVE)', 'format': 'decimal2'},
+                'ld': {'label': 'Likely Duration (months)', 'format': 'decimal2'},
+                'likely_completion': {'label': 'Likely Completion Date', 'format': 'date'},
+            },
+            'Percentage Metrics': {
+                'percent_budget_used': {'label': 'Percent Budget Used (%)', 'format': 'decimal1'},
+                'percent_time_used': {'label': 'Percent Time Used (%)', 'format': 'decimal1'},
+            },
+            'Advanced Financial Metrics': {
+                'planned_value_project': {'label': 'Planned Value Project (PV)', 'format': 'currency'},
+                'likely_value_project': {'label': 'Likely Value Project (PV)', 'format': 'currency'},
+                'percent_present_value_project': {'label': 'Percent Present Value Project (%)', 'format': 'decimal1'},
+                'percent_likely_value_project': {'label': 'Percent Likely Value Project (%)', 'format': 'decimal1'},
+            }
+        }
+
+        def format_value(value, format_type):
+            """Format a value based on the specified format type"""
+            if pd.isna(value):
+                return "N/A"
+
+            if format_type == 'currency':
+                return f"${value:,.0f}"
+            elif format_type == 'decimal1':
+                return f"{value:.1f}"
+            elif format_type == 'decimal2':
+                return f"{value:.2f}"
+            elif format_type == 'date':
+                if isinstance(value, str):
+                    return value
+                try:
+                    return pd.to_datetime(value).strftime('%Y-%m-%d')
+                except:
+                    return str(value)
+            else:
+                return str(value)
+
+        # Check if we have multiple data dates
+        if len(project_data) > 1 and 'data_date' in project_data.columns:
+            st.info(f"ℹ️ Showing {len(project_data)} data points for this project")
+
+            # Normalized Progress Chart
+            st.subheader("📈 Normalized Progress Over Time")
+
+            # Calculate normalized values
+            chart_data = project_data.copy()
+            chart_data['normalized_time'] = chart_data['actual_duration_months'] / chart_data['original_duration_months']
+            chart_data['normalized_ev'] = chart_data['ev'] / chart_data['bac']
+            chart_data['normalized_ac'] = chart_data['ac'] / chart_data['bac']
+
+            # Create plotly figure
+            fig = go.Figure()
+
+            # Add EV line/points
+            fig.add_trace(go.Scatter(
+                x=chart_data['normalized_time'],
+                y=chart_data['normalized_ev'],
+                mode='lines+markers',
+                name='EV (Earned Value)',
+                line=dict(color='green', width=3),
+                marker=dict(size=10, symbol='circle')
+            ))
+
+            # Add AC line/points
+            fig.add_trace(go.Scatter(
+                x=chart_data['normalized_time'],
+                y=chart_data['normalized_ac'],
+                mode='lines+markers',
+                name='AC (Actual Cost)',
+                line=dict(color='red', width=3),
+                marker=dict(size=10, symbol='square')
+            ))
+
+            # Add vertical lines for each data date
+            for idx, row in chart_data.iterrows():
+                date_str = pd.to_datetime(row['data_date']).strftime('%Y-%m-%d') if pd.notna(row['data_date']) else ''
+                fig.add_vline(
+                    x=row['normalized_time'],
+                    line_dash="dash",
+                    line_color="gray",
+                    opacity=0.3,
+                    annotation_text=date_str,
+                    annotation_position="top"
+                )
+
+            # Add diagonal reference line (perfect progress)
+            fig.add_trace(go.Scatter(
+                x=[0, 1],
+                y=[0, 1],
+                mode='lines',
+                name='Planned (Perfect Progress)',
+                line=dict(color='blue', width=2, dash='dot'),
+                showlegend=True
+            ))
+
+            fig.update_layout(
+                title='Normalized Progress Chart (0-1 Scale)',
+                xaxis_title='Normalized Time (0 = Start, 1 = Planned Finish)',
+                yaxis_title='Normalized Value (as fraction of BAC)',
+                hovermode='x unified',
+                height=500,
+                xaxis=dict(range=[-0.05, 1.1]),
+                yaxis=dict(range=[-0.05, 1.1])
+            )
+
+            st.plotly_chart(fig, width='stretch')
+
+            st.divider()
+
+            # Get data dates as column headers
+            data_dates = project_data['data_date'].tolist()
+            date_columns = [f"Date {i+1}" if pd.isna(d) else pd.to_datetime(d).strftime('%Y-%m-%d')
+                           for i, d in enumerate(data_dates)]
+
+            # Build single comprehensive table with all variables
+            st.subheader("📋 Complete Time-Series Data")
+
+            all_rows = []
+
+            # Add category headers and variables
+            for category_name, variables in variable_categories.items():
+                # Add category header row
+                category_header = {'Category': f"📁 {category_name}", 'Metric': ''}
+                for col in date_columns:
+                    category_header[col] = ''
+                all_rows.append(category_header)
+
+                # Add variable rows
+                for var_name, var_info in variables.items():
+                    if var_name in project_data.columns:
+                        row = {'Category': '', 'Metric': var_info['label']}
+
+                        # Add values for each data date
+                        for i, col_name in enumerate(date_columns):
+                            value = project_data.iloc[i][var_name]
+                            row[col_name] = format_value(value, var_info['format'])
+
+                        all_rows.append(row)
+
+            if all_rows:
+                complete_df = pd.DataFrame(all_rows)
+                st.dataframe(
+                    complete_df,
+                    width='stretch',
+                    hide_index=True,
+                    height=600
+                )
+            else:
+                st.info("No data available")
+
+        else:
+            st.warning("⚠️ Only one data point available. This view is most useful when you have multiple data dates for the same project.")
+            st.info("💡 Tip: To see trends over time, ensure your input data includes multiple rows with the same Project ID but different Data Dates.")
 
     else:
         st.warning("No data available for selected project")

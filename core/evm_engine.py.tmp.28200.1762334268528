@@ -206,12 +206,9 @@ def calculate_evm(data, global_values):
     data['present_value'] = data['present_value'].fillna(data['ac'])
 
     # Planned Value (PV)
-    # ALWAYS calculate PV from BAC and time unless use_manual_pv is explicitly enabled
     if global_values.get('use_manual_pv') and 'manual_pv' in data.columns:
         data['pv'] = pd.to_numeric(data['manual_pv'], errors='coerce')
-        import warnings
-        warnings.warn("Using manual PV from 'manual_pv' column as per global settings")
-    else:
+    elif 'pv' not in data.columns or data['pv'].isnull().all():
         t = data['actual_duration_months'] / data['original_duration_months']
         t = t.fillna(0).clip(0, 1)  # Ensure t is between 0 and 1
 
@@ -241,28 +238,28 @@ def calculate_evm(data, global_values):
     data['pv'] = pd.to_numeric(data['pv'], errors='coerce')
 
     # Earned Value (EV)
-    # ALWAYS calculate EV from AC unless use_manual_ev is explicitly enabled
     if global_values.get('use_manual_ev') and 'manual_ev' in data.columns:
         data['ev'] = pd.to_numeric(data['manual_ev'], errors='coerce')
         import warnings
-        warnings.warn("Using manual EV from 'manual_ev' column as per global settings")
-    else:
+        warnings.warn("Using manual EV from input data")
+    elif 'ev' not in data.columns or data['ev'].isnull().all():
         # EV is the present value of AC, discounted by inflation
         # When inflation = 0, EV = AC
         # When inflation > 0, EV < AC (discounted)
         data['ev'] = data['present_value'].copy()
 
+        # Debug: Check that EV <= AC
         import warnings
-        warnings.warn(f"Calculating EV from AC. Sample: AC={data['ac'].iloc[0]:.2f}, inflation={data['inflation_rate'].iloc[0]:.2f}%, duration={data['actual_duration_months'].iloc[0]:.2f} months, EV={data['ev'].iloc[0]:.2f}")
-
-        # Debug: Check that EV <= AC when inflation >= 0
-        problematic_rows = data[(data['ev'] > data['ac']) & (data['inflation_rate'] >= 0)]
-        if len(problematic_rows) > 0:
-            max_diff = (problematic_rows['ev'] - problematic_rows['ac']).max()
-            warnings.warn(f"WARNING: Found {len(problematic_rows)} rows where EV > AC with non-negative inflation! Max difference: {max_diff:.2f}")
+        ev_greater_than_ac = (data['ev'] > data['ac']).sum()
+        if ev_greater_than_ac > 0:
+            max_diff = (data['ev'] - data['ac']).max()
+            warnings.warn(f"WARNING: Found {ev_greater_than_ac} rows where EV > AC! Max difference: {max_diff:.2f}")
             # Show sample for debugging
-            sample = problematic_rows[['ac', 'present_value', 'ev', 'inflation_rate', 'actual_duration_months']].head(3)
-            warnings.warn(f"Sample problematic rows:\n{sample}")
+            sample = data[data['ev'] > data['ac']][['ac', 'present_value', 'ev', 'inflation_rate', 'actual_duration_months']].head(3)
+            warnings.warn(f"Sample rows where EV > AC:\n{sample}")
+    else:
+        import warnings
+        warnings.warn("Using existing EV column from input data - NOT calculating from AC")
 
     # Ensure EV is numeric
     data['ev'] = pd.to_numeric(data['ev'], errors='coerce')

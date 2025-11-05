@@ -34,7 +34,7 @@ with col1:
     - Configure global settings
     - Set calculation parameters
     """)
-    if st.button("Go to Data Input →", use_container_width=True):
+    if st.button("Go to Data Input →", width='stretch'):
         st.switch_page("pages/1_Data_Input.py")
 
 with col2:
@@ -45,7 +45,7 @@ with col2:
     - View detailed results
     - Export data (CSV/JSON)
     """)
-    if st.button("Go to Calculations →", use_container_width=True):
+    if st.button("Go to Calculations →", width='stretch'):
         st.switch_page("pages/2_EVM_Calculations.py")
 
 with col3:
@@ -56,7 +56,7 @@ with col3:
     - Analyze trends over time
     - Assess project health
     """)
-    if st.button("Go to Analysis →", use_container_width=True):
+    if st.button("Go to Analysis →", width='stretch'):
         st.switch_page("pages/3_Project_Analysis.py")
 
 st.divider()

@@ -90,7 +90,7 @@ with tab1:
                 for field, name in optional_fields.items():
                     mapping[field] = st.selectbox(name, ['None'] + columns, index=0, key=f"opt_{field}")
 
-            submitted = st.form_submit_button("✓ Confirm Column Mapping", use_container_width=True)
+            submitted = st.form_submit_button("✓ Confirm Column Mapping", width='stretch')
             if submitted:
                 renamed_df = df.rename(columns={v: k for k, v in mapping.items() if v != 'None'})
                 st.session_state.project_data = renamed_df
@@ -212,7 +212,7 @@ if 'project_data' in st.session_state:
 
                 st.divider()
 
-    st.dataframe(df, use_container_width=True)
+    st.dataframe(df, width='stretch')
 
 st.divider()
 
@@ -261,7 +261,7 @@ with st.form("global_values_form"):
             help="Use manually entered Planned Value instead of calculated"
         )
 
-    submitted = st.form_submit_button("✓ Save Global Settings", use_container_width=True)
+    submitted = st.form_submit_button("✓ Save Global Settings", width='stretch')
     if submitted:
         st.session_state.global_values = {
             "curve": global_curve,
